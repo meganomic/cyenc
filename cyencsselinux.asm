@@ -300,3 +300,9 @@ align 16
 special4:	times 2 dq 0x003D0D0A003D0D0A
 align 16
 const1:		times 2 dq 0x2A2A2A2A2A2A2A2A
+align 16
+specialdecode1: times 2 dq 0x3D0A0D3D0A0D3D0A
+align 16
+specialdecode2: times 2 dq 0x0A0D3D0A0D3D0A0D
+align 16
+specialdecode3: times 2 dq 0x0D3D0A0D3D0A0D3D
