@@ -2,24 +2,26 @@ default rel
 
 section .text ;bits 64
 global encode
+global decode
 align 16
 
 encode:
+	sub rsp, 8 ; Stack alignment
 	push r12 ; save r12 and r13, I need those registers for stuff
 	push r13
 	push rbx
 
-	sub rsp,24 ; 16 enough but want correct alignment
+	sub rsp,16 ; 16 enough but want correct alignment
 	movdqu [rsp], xmm6
 
 	xor rbx, rbx
 	xor r9, r9
 	xor r11, r11
 
-	movdqa xmm6, [special4]
-	movdqa xmm5, [special3]
-	movdqa xmm4, [special2]
-	movdqa xmm3, [special1]
+	movaps xmm6, [special4]
+	movaps xmm5, [special3]
+	movaps xmm4, [special2]
+	movaps xmm3, [special1]
 
 .encodeset:
 	cmp rdx, 16
@@ -28,16 +30,16 @@ encode:
 	paddb xmm0, [const1] ; + 42
 
 	pxor xmm1, xmm1
-	movdqa xmm7, xmm0 ; temporary copy
+	movaps xmm7, xmm0 ; temporary copy
 	pcmpeqb xmm7, xmm3
 	por xmm1, xmm7
-	movdqa xmm7, xmm0
+	movaps xmm7, xmm0
 	pcmpeqb xmm7, xmm4
 	por xmm1, xmm7
-	movdqa xmm7, xmm0
+	movaps xmm7, xmm0
 	pcmpeqb xmm7, xmm5
 	por xmm1, xmm7
-	movdqa xmm7, xmm0
+	movaps xmm7, xmm0
 	pcmpeqb xmm7, xmm6
 	por xmm1, xmm7
 	movq r10, xmm1
@@ -154,17 +156,19 @@ encode:
 .exitprogram:
 	mov rax, r9 ; Return output size
 	movdqu xmm6, [rsp]
-	add rsp,24
+	add rsp,16
 	pop rbx
 	pop r13 ; restore some registers to their original state
 	pop r12
+	add rsp, 8 ; Stack alignment
 	ret
 
 decode:
+	sub rsp, 8 ; Stack alignment
 	push rbx
-	movdqa xmm3, [specialdecode1]
-	movdqa xmm4, [specialdecode2]
-	movdqa xmm5, [specialdecode3]
+	movaps xmm3, [specialdecode1]
+	movaps xmm4, [specialdecode2]
+	movaps xmm5, [specialdecode3]
 	xor rbx, rbx
 
 .decodeset:
@@ -173,13 +177,13 @@ decode:
 	pxor xmm1, xmm1
 	movdqu xmm0, [rdi] ; Read from memory
 
-	movdqa xmm2, xmm0 ; temporary copy
+	movaps xmm2, xmm0 ; temporary copy
 	pcmpeqb xmm2, xmm3 ; Check for special chars
 	por xmm1, xmm2
-	movdqa xmm2, xmm0
+	movaps xmm2, xmm0
 	pcmpeqb xmm2, xmm4
 	por xmm1, xmm2
-	movdqa xmm2, xmm0
+	movaps xmm2, xmm0
 	pcmpeqb xmm2, xmm5
 	por xmm1, xmm2
 	movq r10, xmm1
@@ -287,22 +291,16 @@ decode:
 .decodeexitprogram:
 	mov rax, rcx ; Return output size
 	pop rbx
+	add rsp, 8 ; Stack alignment
 	ret
 
 section .data
 align 16
 special1:	times 2 dq 0x3D0D0A003D0D0A00
-align 16
 special2:	times 2 dq 0x0D0A003D0D0A003D
-align 16
 special3:	times 2 dq 0x0A003D0D0A003D0D
-align 16
 special4:	times 2 dq 0x003D0D0A003D0D0A
-align 16
 const1:		times 2 dq 0x2A2A2A2A2A2A2A2A
-align 16
 specialdecode1: times 2 dq 0x3D0A0D3D0A0D3D0A
-align 16
 specialdecode2: times 2 dq 0x0A0D3D0A0D3D0A0D
-align 16
 specialdecode3: times 2 dq 0x0D3D0A0D3D0A0D3D
