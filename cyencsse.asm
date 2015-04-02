@@ -62,14 +62,27 @@ encode:
 	jmp .encodeset ; Encode another 8 bytes
 
 .scmultientry:
-	xor r13, r13
+	mov r13, 9
 	movq rax, xmm0
 	cmp rax, 0
 	jz .nextset
 	psrldq xmm0, 8
-	
+	cmp r11, 119
+	jge .scmulti
+	add r10, rax
+	cmp rax, r10
+	jne .scmulti
+	mov qword [rdx], rax
+	add rdx, 8
+	add r9, 8
+	add r11, 8
+	sub r8, 8
+	jz .exitprogram
+	jmp .scmultientry
+
 .scmulti:
-	add r13, 1
+	sub r13, 1
+	jz .scmultientry
 	cmp al, 0 ; Check for illegal characters
 	je .scmulti2
 	cmp al, 10
@@ -89,8 +102,6 @@ encode:
 	jz .exitprogram
 	cmp r11, 127
 	jge .scnewlinemulti
-	cmp r13, 8
-	je .scmultientry
 	jmp .scmulti
 
 .scmulti2:
@@ -110,8 +121,6 @@ encode:
 	add rdx, 2 ; increase output array pointer
 	add r9, 2 ; Increase size of output
 	xor r11, r11
-	cmp r13, 8
-	je .scmultientry
 	jmp .scmulti
 
 .scnewline:
@@ -296,17 +305,10 @@ decode:
 section .data
 align 16
 special1:	times 2 dq 0x3D0D0A003D0D0A00
-align 16
 special2:	times 2 dq 0x0D0A003D0D0A003D
-align 16
 special3:	times 2 dq 0x0A003D0D0A003D0D
-align 16
 special4:	times 2 dq 0x003D0D0A003D0D0A
-align 16
 const1:		times 2 dq 0x2A2A2A2A2A2A2A2A
-align 16
 specialdecode1:	times 2 dq 0x3D0A0D3D0A0D3D0A
-align 16
 specialdecode2:	times 2 dq 0x0A0D3D0A0D3D0A0D
-align 16
 specialdecode3:	times 2 dq 0x0D3D0A0D3D0A0D3D
