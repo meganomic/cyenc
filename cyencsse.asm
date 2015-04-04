@@ -47,44 +47,72 @@ encode:
 	pcmpeqb xmm2, xmm6
 	por xmm1, xmm2
 	movq r10, xmm1
-	cmp r10, 0
-	jne .scmultientry
-	psrldq xmm1, 8
-	movq r10, xmm1
-	cmp r10, 0
-	jne .scmultientry
-	cmp r11, 111
-	jge .scmultientry ; Need special handling if we go over line length limit
-	movdqu [rdx], xmm0 ; Move encoded byte to output array
-	add rdx, 16 ; increase output array pointer
-	add rcx, 16 ; increase input pointer
-	add r9, 16 ; Increase size of output
-	add r11, 16 ; Increase line length
-	sub r8, 16 ; Done encoding 16 bytes
-	jmp .encodeset ; Encode another 8 bytes
-
-.scmultientry:
-	mov r13, 9
 	movq rax, xmm0
-	cmp rax, 0
-	jz .nextset
-	psrldq xmm0, 8
+	mov rbx, 1
+	cmp r10, 0
+	jne .scmultientry
 	cmp r11, 119
-	jge .scmulti
-	add r10, rax
-	cmp rax, r10
-	jne .scmulti
+	jge .scmultientry ; Need special handling if we go over line length limit
 	mov qword [rdx], rax
+	add rcx, 8
 	add rdx, 8
 	add r9, 8
 	add r11, 8
 	sub r8, 8
-	jz .exitprogram
-	jmp .scmultientry
+
+.parttwo:
+	mov rbx, 0
+	psrldq xmm1, 8
+	psrldq xmm0, 8
+	movq r10, xmm1
+	movq rax, xmm0
+	cmp r10, 0
+	jne .scmultientry
+	cmp r11, 119
+	jge .scmultientry ; Need special handling if we go over line length limit
+	mov qword [rdx], rax
+	add rcx, 8
+	add rdx, 8
+	add r9, 8
+	add r11, 8
+	sub r8, 8
+	;movdqu [rdx], xmm0 ; Move encoded byte to output array
+	;add rdx, 16 ; increase output array pointer
+	;add rcx, 16 ; increase input pointer
+	;add r9, 16 ; Increase size of output
+	;add r11, 16 ; Increase line length
+	;sub r8, 16 ; Done encoding 16 bytes
+	jmp .encodeset ; Encode another 8 bytes
+
+.parttwocheck:
+	add rcx, 8
+	sub r8, 8
+	cmp rbx, 1
+	je .parttwo
+	jmp .encodeset
+
+.scmultientry:
+	mov r13, 9
+	;movq rax, xmm0
+	;cmp rax, 0
+	;jz .nextset
+	;psrldq xmm0, 8
+	;cmp r11, 119
+	;jge .scmulti
+	;add r10, rax
+	;cmp rax, r10
+	;jne .scmulti
+	;mov qword [rdx], rax
+	;add rdx, 8
+	;add r9, 8
+	;add r11, 8
+	;sub r8, 8
+	;jz .exitprogram
+	;jmp .scmultientry
 
 .scmulti:
 	sub r13, 1
-	jz .scmultientry
+	jz .parttwocheck
 	cmp al, 0 ; Check for illegal characters
 	je .scmulti2
 	cmp al, 10
@@ -100,8 +128,6 @@ encode:
 	add r9, 1 ; Increase size of output
 	add r11, 1 ; Increase line length
 	ror rax, 8
-	sub r8, 1
-	jz .exitprogram
 	cmp r11, 127
 	jge .scnewlinemulti
 	jmp .scmulti
@@ -113,10 +139,6 @@ encode:
 	add r9, 1 ; Increase size of output
 	add r11, 1 ; Increase line length
 	jmp .scnextcharmulti
-
-.nextset:
-	add rcx, 16
-	jmp .encodeset
 
 .scnewlinemulti:
 	mov word [rdx], 0x0A0D ; \r\n
