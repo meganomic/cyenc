@@ -5,7 +5,7 @@ EXPORT decode
 
 default rel
 
-section .code bits 64
+section .code
 align 16
 
 encode:
@@ -76,12 +76,6 @@ encode:
 	add r9, 8
 	add r11, 8
 	sub r8, 8
-	;movdqu [rdx], xmm0 ; Move encoded byte to output array
-	;add rdx, 16 ; increase output array pointer
-	;add rcx, 16 ; increase input pointer
-	;add r9, 16 ; Increase size of output
-	;add r11, 16 ; Increase line length
-	;sub r8, 16 ; Done encoding 16 bytes
 	jmp .encodeset ; Encode another 8 bytes
 
 .parttwocheck:
@@ -93,22 +87,6 @@ encode:
 
 .scmultientry:
 	mov r13, 9
-	;movq rax, xmm0
-	;cmp rax, 0
-	;jz .nextset
-	;psrldq xmm0, 8
-	;cmp r11, 119
-	;jge .scmulti
-	;add r10, rax
-	;cmp rax, r10
-	;jne .scmulti
-	;mov qword [rdx], rax
-	;add rdx, 8
-	;add r9, 8
-	;add r11, 8
-	;sub r8, 8
-	;jz .exitprogram
-	;jmp .scmultientry
 
 .scmulti:
 	sub r13, 1
@@ -202,97 +180,99 @@ encode:
 decode:
 	sub rsp, 8
 	push rbx
-	movaps xmm3, [specialdecode1]
+	sub rsp,16 ; need space for xmm6
+	movdqu [rsp], xmm6
+	sub rsp,16 ; need space for xmm6
+	movdqu [rsp], xmm7
+	sub rsp,16 ; need space for xmm6
+	movdqu [rsp], xmm8
+
+	movaps xmm3, [specialdecode1] ; 0x3D
 	movaps xmm4, [specialdecode2]
 	movaps xmm5, [specialdecode3]
+	movaps xmm6, [decodeconst1] ; 0xFF
+	movaps xmm7, [specialdecode4] ; 0x40
 	xor rbx, rbx
+	xor r11, r11
 
 .decodeset:
 	cmp r8, 16
 	jle .decspecialchar ; The last 8 or less characters need special treatment
-	pxor xmm1, xmm1
+	pxor xmm1, xmm1 ; zero mask register
 	movdqu xmm0, [rcx] ; Read from memory
-
 	movaps xmm2, xmm0 ; temporary copy
-	pcmpeqb xmm2, xmm3 ; Check for special chars
+	pcmpeqb xmm2, xmm4 ; Check for 0x0A0D
 	por xmm1, xmm2
 	movaps xmm2, xmm0
-	pcmpeqb xmm2, xmm4
+	pcmpeqb xmm2, xmm5 ; Check for 0x0D0A
 	por xmm1, xmm2
 	movaps xmm2, xmm0
-	pcmpeqb xmm2, xmm5
+	pcmpeqb xmm2, xmm3 ; Check for 0x3D
+	
+	movaps xmm8, xmm2 ; make a copy
 	por xmm1, xmm2
-	movq r10, xmm1
+	pslldq xmm2, 1
+
+	cmp bx, [decodeconst2]
+	jne .deccontinue
+	pand xmm1, [decodeconst4] ; Make sure first byte isn't skipped
+	por xmm2, [decodeconst3]
+	mov bx, 0
+
+.deccontinue:
+	pand xmm2, xmm7 ; 1s to 64s, I think
+	psubb xmm0, xmm2 ; -64 to select bytes
+	psubb xmm0, [const1] ; -42 to all bytes
+
+	psrldq xmm8, 8
+	movq r10, xmm8
+	rol r10, 8
+	cmp r10b, 0xFF ; Check if last byte is an escape character
+	cmove bx, [decodeconst2] ; set bl to 0xff if it is
+
+	mov r11b, 2
+.retfromwset:
+	movq r10, xmm1 ; List of bytes to skip
+	movq rax, xmm0 ; Move to gpr so we can do stuff
 	cmp r10, 0
-	jne .decodemultientry ; Let's do special stuff!
+	je .writeset
+	mov r12b, 8
+.compactbytes:
+	cmp r10b, 0xFF
+	je .skipbyte
+	mov byte [rdx], al
+	add rdx, 1
+	add r9, 1
+.skipbyte:
+	ror r10, 8
+	ror rax, 8
+	sub r12b, 1
+	jnz .compactbytes
+
 	psrldq xmm1, 8
+	psrldq xmm0, 8
 	movq r10, xmm1
-	cmp r10, 0
-	jne .decodemultientry ; Let's do special stuff!
-	cmp bl, 1 ; Check if there was a = last in last batch
-	je .decodemultientry
-	psubb xmm0, [const1] ; - 42
-	movdqu [rdx], xmm0 ; Move decoded byte to output array
-	add rdx, 16 ; increase output array pointer
+	movq rax, xmm0
+	mov r12b, 8
+	sub r11b, 1
+	jnz .compactbytes
+
 	add rcx, 16 ; increase input pointer
-	add r9, 16 ; Increase size of output
 	sub r8, 16 ; Done encoding 16 bytes
 	jmp .decodeset ; Encode another 16 bytes
 
-.decodemultientry:
-	xor r11, r11
-	movq rax, xmm0 ; Move to gpr so we can do stuff
-	cmp rax, 0
-	jz .decodenextset ; If it's zero it means we've already done all the bytes in xmm0
-	psrldq xmm0, 8 ; Shift bytes
+.writeset:
+	mov qword [rdx], rax
+	add rdx, 8
+	add r9, 8
+	psrldq xmm1, 8
+	psrldq xmm0, 8
+	sub r11b, 1
+	jnz .retfromwset
 
-.decodemulti:
-	add r11, 1
-	cmp bl, 1
-	je .decfixbreak
-	cmp al, 61
-	je .decodespecial
-	cmp al, 10
-	je .decskipbyte
-	cmp al, 13
-	je .decskipbyte
-
-.decodenextcharmulti:
-	sub al, 42 ; Decode
-	mov byte [rdx], al ; Move decoded byte to output array
-	add rdx, 1 ; increase output array pointer
-	add r9, 1 ; Increase size of output
-	sub r8, 1
-	jz .decodeexitprogram
-	cmp r11, 8
-	je .decodemultientry
-	ror rax, 8
-	jmp .decodemulti
-
-.decskipbyte:
-	sub r8, 1
-	jz .decodeexitprogram
-	cmp r11, 8
-	je .decodemultientry
-	ror rax, 8
-	jmp .decodemulti
-
-.decodespecial:
-	sub r8, 1
-	jz .decodeexitprogram
-	add bl, 1
-	cmp r11, 8
-	je .decodemultientry
-	ror rax, 8
-	add r11, 1
-
-.decfixbreak:
-	sub al, 64 ; Decode
-	sub bl, 1
-	jmp .decodenextcharmulti
-
-.decodenextset:
-	add rcx, 16
+	add rcx, 16 ; increase input pointer
+	;add r9, 16 ; Increase size of output
+	sub r8, 16 ; Done encoding 16 bytes
 	jmp .decodeset
 
 .decscnextchar:
@@ -326,6 +306,12 @@ decode:
 
 .decodeexitprogram:
 	mov rax, r9 ; Return output size
+	movdqu xmm8, [rsp]
+	add rsp, 16
+	movdqu xmm7, [rsp]
+	add rsp, 16
+	movdqu xmm6, [rsp]
+	add rsp, 16
 	pop rbx
 	add rsp, 8
 	ret
@@ -337,6 +323,11 @@ special2:	times 2 dq 0x0D0A003D0D0A003D
 special3:	times 2 dq 0x0A003D0D0A003D0D
 special4:	times 2 dq 0x003D0D0A003D0D0A
 const1:		times 2 dq 0x2A2A2A2A2A2A2A2A
-specialdecode1:	times 2 dq 0x3D0A0D3D0A0D3D0A
-specialdecode2:	times 2 dq 0x0A0D3D0A0D3D0A0D
-specialdecode3:	times 2 dq 0x0D3D0A0D3D0A0D3D
+specialdecode1:	times 2 dq 0x3D3D3D3D3D3D3D3D
+specialdecode2:	times 2 dq 0x0A0D0A0D0A0D0A0D
+specialdecode3:	times 2 dq 0x0D0A0D0A0D0A0D0A
+specialdecode4:	times 2 dq 0x4040404040404040
+decodeconst3:	ddq	0x000000000000000000000000000000FF
+decodeconst4:	ddq	0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00
+decodeconst1:	 dq 0xFFFFFFFFFFFFFFFF
+decodeconst2:	 db 0x000000FF
