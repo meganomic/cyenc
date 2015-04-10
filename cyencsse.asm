@@ -7,7 +7,6 @@ default rel
 
 section .code
 align 16
-
 encode:
 	sub rsp, 8 ; Stack alignment
 	push r12 ; save r12 and r13, I need those registers for stuff
@@ -15,37 +14,32 @@ encode:
 	push rbx
 	push rdi
 
-	sub rsp,16 ; need space for xmm6
-	movdqu [rsp], xmm6
-
 	xor rbx, rbx
 	xor r9, r9
 	xor r11, r11
 
-	movaps xmm6, [special4]
-	movaps xmm5, [special3]
-	movaps xmm4, [special2]
-	movaps xmm3, [special1]
-
+	movaps xmm3, [const1] ; 0x40
+align 16
 .encodeset:
 	cmp r8, 16
 	jle .specialchar ; The last 8 or less characters need special treatment
 	movaps xmm0, [rcx]
-	paddb xmm0, [const1] ; + 42
+	paddb xmm0, xmm3 ; +42
 
 	pxor xmm1, xmm1
+	movaps xmm2, xmm0
+	pcmpeqb xmm2, xmm1 ; 0x00
+	por xmm1, xmm2 ; save compare results
 	movaps xmm2, xmm0 ; temporary copy
-	pcmpeqb xmm2, xmm3
-	por xmm1, xmm2
+	pcmpeqb xmm2, [special1] ; 0x3D
+	por xmm1, xmm2 ; save compare results
 	movaps xmm2, xmm0
-	pcmpeqb xmm2, xmm4
-	por xmm1, xmm2
+	pcmpeqb xmm2, [special2] ; 0x0A
+	por xmm1, xmm2 ; save compare results
 	movaps xmm2, xmm0
-	pcmpeqb xmm2, xmm5
-	por xmm1, xmm2
-	movaps xmm2, xmm0
-	pcmpeqb xmm2, xmm6
-	por xmm1, xmm2
+	pcmpeqb xmm2, [special3] ; 0x0D
+	por xmm1, xmm2 ; save compare results
+
 	movq r10, xmm1
 	movq rax, xmm0
 	mov rbx, 1
@@ -59,7 +53,7 @@ encode:
 	add r9, 8
 	add r11, 8
 	sub r8, 8
-
+align 16
 .parttwo:
 	mov rbx, 0
 	psrldq xmm1, 8
@@ -77,14 +71,14 @@ encode:
 	add r11, 8
 	sub r8, 8
 	jmp .encodeset ; Encode another 8 bytes
-
+align 16
 .parttwocheck:
 	add rcx, 8
 	sub r8, 8
 	cmp rbx, 1
 	je .parttwo
 	jmp .encodeset
-
+align 16
 .scmultientry:
 	mov r13, 9
 
@@ -117,14 +111,14 @@ encode:
 	add r9, 1 ; Increase size of output
 	add r11, 1 ; Increase line length
 	jmp .scnextcharmulti
-
+align 16
 .scnewlinemulti:
 	mov word [rdx], 0x0A0D ; \r\n
 	add rdx, 2 ; increase output array pointer
 	add r9, 2 ; Increase size of output
 	xor r11, r11
 	jmp .scmulti
-
+align 16
 .scnewline:
 	mov word [rdx], 0x0A0D ; \r\n
 	add rdx, 2 ; increase output array pointer
@@ -139,7 +133,7 @@ encode:
 .specialchar:
 	add r13, 1
 	mov r10b, byte [rcx] ; Move character from memory to register
-	add r10b, 42 ; Add 42 before modulus
+	add r10b, 42 ; Add 42
 	cmp r10b, 0 ; Check for illegal characters
 	je .sc
 	cmp r10b, 10
@@ -168,8 +162,6 @@ encode:
 
 .exitprogram:
 	mov rax, r9 ; Return output size
-	movdqu xmm6, [rsp]
-	add rsp,16
 	pop rdi
 	pop rbx
 	pop r13 ; restore some registers to their original state
@@ -177,63 +169,55 @@ encode:
 	add rsp, 8
 	ret
 
+align 16
 decode:
 	sub rsp, 8
 	push rbx
-	sub rsp,16 ; need space for xmm6
-	movdqu [rsp], xmm6
-	sub rsp,16 ; need space for xmm6
-	movdqu [rsp], xmm7
-	sub rsp,16 ; need space for xmm6
-	movdqu [rsp], xmm8
 
-	movaps xmm3, [specialdecode1] ; 0x3D
-	movaps xmm4, [specialdecode2]
-	movaps xmm5, [specialdecode3]
-	movaps xmm6, [decodeconst1] ; 0xFF
-	movaps xmm7, [specialdecode4] ; 0x40
 	xor rbx, rbx
 	xor r11, r11
 
 .decodeset:
 	cmp r8, 16
 	jle .decspecialchar ; The last 8 or less characters need special treatment
+
 	pxor xmm1, xmm1 ; zero mask register
-	movdqu xmm0, [rcx] ; Read from memory
+	movaps xmm0, [rcx] ; Read from memory
+
 	movaps xmm2, xmm0 ; temporary copy
-	pcmpeqb xmm2, xmm4 ; Check for 0x0A0D
+	pcmpeqb xmm2, [special2] ; Check for 0x0A
 	por xmm1, xmm2
 	movaps xmm2, xmm0
-	pcmpeqb xmm2, xmm5 ; Check for 0x0D0A
+	pcmpeqb xmm2, [special3] ; Check for 0x0D
 	por xmm1, xmm2
 	movaps xmm2, xmm0
-	pcmpeqb xmm2, xmm3 ; Check for 0x3D
-	
-	movaps xmm8, xmm2 ; make a copy
+	pcmpeqb xmm2, [special1] ; Check for 0x3D
+
+	movaps xmm3, xmm2 ; make a copy
 	por xmm1, xmm2
 	pslldq xmm2, 1
 
-	cmp bx, [decodeconst2]
+	cmp bx, [decodeconst2] ; if the last character in the read data is an escape character it requires special stuff
 	jne .deccontinue
 	pand xmm1, [decodeconst4] ; Make sure first byte isn't skipped
-	por xmm2, [decodeconst3]
+	por xmm2, [decodeconst3] ; The first byte require special math
 	mov bx, 0
 
 .deccontinue:
-	pand xmm2, xmm7 ; 1s to 64s, I think
-	psubb xmm0, xmm2 ; -64 to select bytes
+	pand xmm2, [specialdecode4] ; 1s to 64s, I think
 	psubb xmm0, [const1] ; -42 to all bytes
+	psubb xmm0, xmm2 ; -64 to select bytes
 
-	psrldq xmm8, 8
-	movq r10, xmm8
+	psrldq xmm3, 8
+	movd r10, xmm3
 	rol r10, 8
 	cmp r10b, 0xFF ; Check if last byte is an escape character
 	cmove bx, [decodeconst2] ; set bl to 0xff if it is
 
 	mov r11b, 2
 .retfromwset:
-	movq r10, xmm1 ; List of bytes to skip
-	movq rax, xmm0 ; Move to gpr so we can do stuff
+	movd r10, xmm1 ; List of bytes to skip
+	movd rax, xmm0 ; Move to gpr so we can do stuff
 	cmp r10, 0
 	je .writeset
 	mov r12b, 8
@@ -241,37 +225,35 @@ decode:
 	cmp r10b, 0xFF
 	je .skipbyte
 	mov byte [rdx], al
-	add rdx, 1
 	add r9, 1
+	add rdx, 1
+
 .skipbyte:
-	ror r10, 8
-	ror rax, 8
+	shr r10, 8
+	shr rax, 8
 	sub r12b, 1
 	jnz .compactbytes
 
-	psrldq xmm1, 8
-	psrldq xmm0, 8
-	movq r10, xmm1
-	movq rax, xmm0
-	mov r12b, 8
-	sub r11b, 1
-	jnz .compactbytes
-
-	add rcx, 16 ; increase input pointer
-	sub r8, 16 ; Done encoding 16 bytes
-	jmp .decodeset ; Encode another 16 bytes
-
-.writeset:
-	mov qword [rdx], rax
-	add rdx, 8
-	add r9, 8
 	psrldq xmm1, 8
 	psrldq xmm0, 8
 	sub r11b, 1
 	jnz .retfromwset
 
 	add rcx, 16 ; increase input pointer
-	;add r9, 16 ; Increase size of output
+	sub r8, 16 ; Done encoding 16 bytes
+	jmp .decodeset ; Encode another 16 bytes
+
+align 16
+.writeset:
+	mov qword [rdx], rax
+	add r9, 8
+	add rdx, 8
+	psrldq xmm1, 8 ; right shift by 8 bytes
+	psrldq xmm0, 8 ; right shift by 8 bytes
+	sub r11b, 1
+	jnz .retfromwset
+
+	add rcx, 16 ; increase input pointer
 	sub r8, 16 ; Done encoding 16 bytes
 	jmp .decodeset
 
@@ -306,28 +288,18 @@ decode:
 
 .decodeexitprogram:
 	mov rax, r9 ; Return output size
-	movdqu xmm8, [rsp]
-	add rsp, 16
-	movdqu xmm7, [rsp]
-	add rsp, 16
-	movdqu xmm6, [rsp]
-	add rsp, 16
 	pop rbx
 	add rsp, 8
 	ret
 
 section .data
 align 16
-special1:	times 2 dq 0x3D0D0A003D0D0A00
-special2:	times 2 dq 0x0D0A003D0D0A003D
-special3:	times 2 dq 0x0A003D0D0A003D0D
-special4:	times 2 dq 0x003D0D0A003D0D0A
+special1:	times 2 dq 0x3D3D3D3D3D3D3D3D
+special2:	times 2 dq 0x0A0A0A0A0A0A0A0A
+special3:	times 2 dq 0X0D0D0D0D0D0D0D0D
 const1:		times 2 dq 0x2A2A2A2A2A2A2A2A
-specialdecode1:	times 2 dq 0x3D3D3D3D3D3D3D3D
-specialdecode2:	times 2 dq 0x0A0D0A0D0A0D0A0D
-specialdecode3:	times 2 dq 0x0D0A0D0A0D0A0D0A
 specialdecode4:	times 2 dq 0x4040404040404040
 decodeconst3:	ddq	0x000000000000000000000000000000FF
 decodeconst4:	ddq	0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00
 decodeconst1:	 dq 0xFFFFFFFFFFFFFFFF
-decodeconst2:	 db 0x000000FF
+decodeconst2:	 dd 0x000000FF
