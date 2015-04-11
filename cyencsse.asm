@@ -197,11 +197,13 @@ decode:
 	por xmm1, xmm2
 	pslldq xmm2, 1
 
-	cmp bx, [decodeconst2] ; if the last character in the read data is an escape character it requires special stuff
+	;cmp bx, [decodeconst2] ; if the last character in the last batch was a escape character it requires special stuff
+	cmp byte [lastchar], 0xFF
 	jne .deccontinue
 	pand xmm1, [decodeconst4] ; Make sure first byte isn't skipped
 	por xmm2, [decodeconst3] ; The first byte require special math
-	mov bx, 0
+	mov byte [lastchar], 0x00
+	;mov bx, 0x0000
 
 .deccontinue:
 	pand xmm2, [specialdecode4] ; 1s to 64s, I think
@@ -212,8 +214,11 @@ decode:
 	movd r10, xmm3
 	rol r10, 8
 	cmp r10b, 0xFF ; Check if last byte is an escape character
-	cmove bx, [decodeconst2] ; set bl to 0xff if it is
+	jne .cont2
+	mov byte [lastchar], 0xFF
+	;mov bx, [decodeconst2] ; set bl to 0xff if it is
 
+.cont2:
 	mov r11b, 2
 .retfromwset:
 	movd r10, xmm1 ; List of bytes to skip
@@ -264,6 +269,8 @@ align 16
 
 .decspecialchar:
 	mov r10b, byte [rcx] ; Move character from memory to register
+	cmp byte [lastchar], 0xFF ; if the last character in the last batch was a escape character it requires special stuff
+	je .decsc2
 	cmp r10b, 61
 	je .decsc
 	cmp r10b, 10
@@ -272,19 +279,28 @@ align 16
 	je .decscnextchar
 	jmp .decscoutputencoded
 
+.decsc2:
+	;sub r8, 1
+	mov byte [lastchar], 0x00
+	sub r10b, 64 ; This time we sub 64
+	jmp .decscoutputencoded
+
 .decsc:
 	sub r8, 1
-	jz .decodeexitprogram
+	jz .decodeexitprogram2
 	add rcx, 1
 	mov r10b, byte [rcx] ; Move character from memory to register
 	sub r10b, 64 ; This time we sub 64
 
 .decscoutputencoded:
-	sub r10b, 42 ; Sub 42 before modulus
+	sub r10b, 42 ; -42
 	mov byte [rdx], r10b ; Move encoded byte to output array
 	add rdx, 1 ; increase output array pointer
 	add r9, 1 ; Increase size of output
 	jmp .decscnextchar
+
+.decodeexitprogram2:
+	mov byte [lastchar], 0xFF
 
 .decodeexitprogram:
 	mov rax, r9 ; Return output size
@@ -292,8 +308,7 @@ align 16
 	add rsp, 8
 	ret
 
-section .data
-align 16
+section .data align=16
 special1:	times 2 dq 0x3D3D3D3D3D3D3D3D
 special2:	times 2 dq 0x0A0A0A0A0A0A0A0A
 special3:	times 2 dq 0X0D0D0D0D0D0D0D0D
@@ -302,4 +317,5 @@ specialdecode4:	times 2 dq 0x4040404040404040
 decodeconst3:	ddq	0x000000000000000000000000000000FF
 decodeconst4:	ddq	0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00
 decodeconst1:	 dq 0xFFFFFFFFFFFFFFFF
-decodeconst2:	 dd 0x000000FF
+decodeconst2:	 dw 0x00FF
+lastchar:	db 0x00
