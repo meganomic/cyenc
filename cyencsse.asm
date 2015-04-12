@@ -26,7 +26,7 @@ align 16
 	movaps xmm0, [rcx]
 	paddb xmm0, xmm3 ; +42
 
-	pxor xmm1, xmm1
+	pxor xmm1, xmm1 ; zero mask register
 	movaps xmm2, xmm0
 	pcmpeqb xmm2, xmm1 ; 0x00
 	por xmm1, xmm2 ; save compare results
@@ -40,8 +40,8 @@ align 16
 	pcmpeqb xmm2, [special3] ; 0x0D
 	por xmm1, xmm2 ; save compare results
 
-	movq r10, xmm1
-	movq rax, xmm0
+	movd r10, xmm1
+	movd rax, xmm0
 	mov rbx, 1
 	cmp r10, 0
 	jne .scmultientry
@@ -58,8 +58,8 @@ align 16
 	mov rbx, 0
 	psrldq xmm1, 8
 	psrldq xmm0, 8
-	movq r10, xmm1
-	movq rax, xmm0
+	movd r10, xmm1
+	movd rax, xmm0
 	cmp r10, 0
 	jne .scmultientry
 	cmp r11, 119
@@ -71,6 +71,7 @@ align 16
 	add r11, 8
 	sub r8, 8
 	jmp .encodeset ; Encode another 8 bytes
+
 align 16
 .parttwocheck:
 	add rcx, 8
@@ -78,6 +79,7 @@ align 16
 	cmp rbx, 1
 	je .parttwo
 	jmp .encodeset
+
 align 16
 .scmultientry:
 	mov r13, 9
@@ -85,13 +87,7 @@ align 16
 .scmulti:
 	sub r13, 1
 	jz .parttwocheck
-	cmp al, 0 ; Check for illegal characters
-	je .scmulti2
-	cmp al, 10
-	je .scmulti2
-	cmp al, 13
-	je .scmulti2
-	cmp al, 61
+	cmp r10b, 0xFF
 	je .scmulti2
 
 .scnextcharmulti:
@@ -99,11 +95,13 @@ align 16
 	add rdx, 1 ; increase output array pointer
 	add r9, 1 ; Increase size of output
 	add r11, 1 ; Increase line length
-	ror rax, 8
+	shr rax, 8
+	shr r10, 8
 	cmp r11, 127
 	jge .scnewlinemulti
 	jmp .scmulti
 
+align 16
 .scmulti2:
 	add al, 64 ; This time we add 64
 	mov byte [rdx], 61 ; Add escape character
@@ -111,6 +109,7 @@ align 16
 	add r9, 1 ; Increase size of output
 	add r11, 1 ; Increase line length
 	jmp .scnextcharmulti
+
 align 16
 .scnewlinemulti:
 	mov word [rdx], 0x0A0D ; \r\n
@@ -118,6 +117,7 @@ align 16
 	add r9, 2 ; Increase size of output
 	xor r11, r11
 	jmp .scmulti
+
 align 16
 .scnewline:
 	mov word [rdx], 0x0A0D ; \r\n
@@ -197,13 +197,11 @@ decode:
 	por xmm1, xmm2
 	pslldq xmm2, 1
 
-	;cmp bx, [decodeconst2] ; if the last character in the last batch was a escape character it requires special stuff
 	cmp byte [lastchar], 0xFF
 	jne .deccontinue
 	pand xmm1, [decodeconst4] ; Make sure first byte isn't skipped
 	por xmm2, [decodeconst3] ; The first byte require special math
 	mov byte [lastchar], 0x00
-	;mov bx, 0x0000
 
 .deccontinue:
 	pand xmm2, [specialdecode4] ; 1s to 64s, I think
@@ -216,7 +214,6 @@ decode:
 	cmp r10b, 0xFF ; Check if last byte is an escape character
 	jne .cont2
 	mov byte [lastchar], 0xFF
-	;mov bx, [decodeconst2] ; set bl to 0xff if it is
 
 .cont2:
 	mov r11b, 2
@@ -300,7 +297,7 @@ align 16
 	jmp .decscnextchar
 
 .decodeexitprogram2:
-	mov byte [lastchar], 0xFF
+	mov byte [lastchar], 0xFF ; if the last character is a escape character, that information needs to be saved
 
 .decodeexitprogram:
 	mov rax, r9 ; Return output size
