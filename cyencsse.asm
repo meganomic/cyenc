@@ -19,10 +19,10 @@ encode:
 	xor r11, r11
 
 	movaps xmm3, [const1] ; 0x40
+	
+	sub r8, 16
 align 16
 .encodeset:
-	cmp r8, 16
-	jle .specialchar ; The last 8 or less characters need special treatment
 	movaps xmm0, [rcx]
 	paddb xmm0, xmm3 ; +42
 
@@ -48,11 +48,11 @@ align 16
 	cmp r11, 119
 	jge .scmultientry ; Need special handling if we go over line length limit
 	mov qword [rdx], rax
-	add rcx, 8
+	;add rcx, 8
 	add rdx, 8
-	add r9, 8
+	;add r9, 8
 	add r11, 8
-	sub r8, 8
+
 align 16
 .parttwo:
 	mov rbx, 0
@@ -65,19 +65,23 @@ align 16
 	cmp r11, 119
 	jge .scmultientry ; Need special handling if we go over line length limit
 	mov qword [rdx], rax
-	add rcx, 8
-	add rdx, 8
-	add r9, 8
+	add rcx, 16 ; increase input pointer
+	add rdx, 8 ; increase output pointer
+	add r9, 16 ; increase output size
 	add r11, 8
-	sub r8, 8
+	sub r8, 16 ; decrease input size
+	jbe .specialcharentry
 	jmp .encodeset ; Encode another 8 bytes
 
 align 16
 .parttwocheck:
-	add rcx, 8
-	sub r8, 8
+	;add rcx, 8
 	cmp rbx, 1
 	je .parttwo
+	add rcx, 16
+	add r9, 16
+	sub r8, 16
+	jbe .specialcharentry
 	jmp .encodeset
 
 align 16
@@ -93,7 +97,7 @@ align 16
 .scnextcharmulti:
 	mov byte [rdx], al ; Move encoded byte to output array
 	add rdx, 1 ; increase output array pointer
-	add r9, 1 ; Increase size of output
+	;add r9, 1 ; Increase size of output
 	add r11, 1 ; Increase line length
 	shr rax, 8
 	shr r10, 8
@@ -124,6 +128,10 @@ align 16
 	add rdx, 2 ; increase output array pointer
 	add r9, 2 ; Increase size of output
 	xor r11, r11
+
+.specialcharentry:
+	add r8, 16
+	jmp .specialchar
 
 .scnextchar:
 	add rcx, 1
@@ -313,6 +321,4 @@ const1:		times 2 dq 0x2A2A2A2A2A2A2A2A
 specialdecode4:	times 2 dq 0x4040404040404040
 decodeconst3:	ddq	0x000000000000000000000000000000FF
 decodeconst4:	ddq	0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00
-decodeconst1:	 dq 0xFFFFFFFFFFFFFFFF
-decodeconst2:	 dw 0x00FF
 lastchar:	db 0x00
