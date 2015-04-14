@@ -19,10 +19,12 @@ encode:
 	xor r11, r11
 
 	movaps xmm3, [const1] ; 0x40
-	
+	mov r9, rdx ; original position of outputarray
 	sub r8, 16
 align 16
 .encodeset:
+	;cmp r8, 16
+	;jle .specialchar ; The last 8 or less characters need special treatment
 	movaps xmm0, [rcx]
 	paddb xmm0, xmm3 ; +42
 
@@ -48,11 +50,10 @@ align 16
 	cmp r11, 119
 	jge .scmultientry ; Need special handling if we go over line length limit
 	mov qword [rdx], rax
-	;add rcx, 8
+	add rcx, 8
 	add rdx, 8
-	;add r9, 8
 	add r11, 8
-
+	;sub r8, 8
 align 16
 .parttwo:
 	mov rbx, 0
@@ -65,21 +66,18 @@ align 16
 	cmp r11, 119
 	jge .scmultientry ; Need special handling if we go over line length limit
 	mov qword [rdx], rax
-	add rcx, 16 ; increase input pointer
-	add rdx, 8 ; increase output pointer
-	add r9, 16 ; increase output size
+	add rcx, 8
+	add rdx, 8
 	add r11, 8
-	sub r8, 16 ; decrease input size
+	sub r8, 16
 	jbe .specialcharentry
 	jmp .encodeset ; Encode another 8 bytes
 
 align 16
 .parttwocheck:
-	;add rcx, 8
+	add rcx, 8
 	cmp rbx, 1
 	je .parttwo
-	add rcx, 16
-	add r9, 16
 	sub r8, 16
 	jbe .specialcharentry
 	jmp .encodeset
@@ -97,7 +95,6 @@ align 16
 .scnextcharmulti:
 	mov byte [rdx], al ; Move encoded byte to output array
 	add rdx, 1 ; increase output array pointer
-	;add r9, 1 ; Increase size of output
 	add r11, 1 ; Increase line length
 	shr rax, 8
 	shr r10, 8
@@ -110,7 +107,6 @@ align 16
 	add al, 64 ; This time we add 64
 	mov byte [rdx], 61 ; Add escape character
 	add rdx, 1 ; increase output array pointer
-	add r9, 1 ; Increase size of output
 	add r11, 1 ; Increase line length
 	jmp .scnextcharmulti
 
@@ -118,20 +114,17 @@ align 16
 .scnewlinemulti:
 	mov word [rdx], 0x0A0D ; \r\n
 	add rdx, 2 ; increase output array pointer
-	add r9, 2 ; Increase size of output
 	xor r11, r11
 	jmp .scmulti
-
 align 16
-.scnewline:
-	mov word [rdx], 0x0A0D ; \r\n
-	add rdx, 2 ; increase output array pointer
-	add r9, 2 ; Increase size of output
-	xor r11, r11
-
 .specialcharentry:
 	add r8, 16
 	jmp .specialchar
+
+.scnewline:
+	mov word [rdx], 0x0A0D ; \r\n
+	add rdx, 2 ; increase output array pointer
+	xor r11, r11
 
 .scnextchar:
 	add rcx, 1
@@ -156,20 +149,19 @@ align 16
 	add r10b, 64 ; This time we add 64
 	mov byte [rdx], 61 ; Add escape character
 	add rdx, 1 ; increase output array pointer
-	add r9, 1 ; Increase size of output
 	add r11, 1 ; Increase line length
 
 .scoutputencoded:
 	mov byte [rdx], r10b ; Move encoded byte to output array
 	add rdx, 1 ; increase output array pointer
-	add r9, 1 ; Increase size of output
 	add r11, 1 ; Increase line length
 	cmp r11, 127
 	jge .scnewline
 	jmp .scnextchar
 
 .exitprogram:
-	mov rax, r9 ; Return output size
+	sub rdx, r9 ; subtract original position from current and we get the size
+	mov rax, rdx ; Return output size
 	pop rdi
 	pop rbx
 	pop r13 ; restore some registers to their original state
