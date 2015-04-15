@@ -2,6 +2,10 @@ GLOBAL encode
 EXPORT encode
 GLOBAL decode
 EXPORT decode
+GLOBAL debug_getlc
+EXPORT debug_getlc
+GLOBAL debug_setlc
+EXPORT debug_setlc
 
 default rel
 
@@ -173,9 +177,13 @@ align 16
 decode:
 	sub rsp, 8
 	push rbx
+	push r12
 
 	xor rbx, rbx
 	xor r11, r11
+	;xor r9, r9
+
+	mov r9, rdx ; original position of outputarray
 
 .decodeset:
 	cmp r8, 16
@@ -227,7 +235,6 @@ decode:
 	cmp r10b, 0xFF
 	je .skipbyte
 	mov byte [rdx], al
-	add r9, 1
 	add rdx, 1
 
 .skipbyte:
@@ -248,7 +255,6 @@ decode:
 align 16
 .writeset:
 	mov qword [rdx], rax
-	add r9, 8
 	add rdx, 8
 	psrldq xmm1, 8 ; right shift by 8 bytes
 	psrldq xmm0, 8 ; right shift by 8 bytes
@@ -293,16 +299,26 @@ align 16
 	sub r10b, 42 ; -42
 	mov byte [rdx], r10b ; Move encoded byte to output array
 	add rdx, 1 ; increase output array pointer
-	add r9, 1 ; Increase size of output
 	jmp .decscnextchar
 
 .decodeexitprogram2:
 	mov byte [lastchar], 0xFF ; if the last character is a escape character, that information needs to be saved
 
 .decodeexitprogram:
-	mov rax, r9 ; Return output size
+	sub rdx, r9 ; subtract original position from current and we get the size
+	mov rax, rdx ; Return output size
+	pop r12
 	pop rbx
 	add rsp, 8
+	ret
+
+debug_getlc:
+	xor rax, rax
+	mov al, byte [lastchar]
+	ret
+
+debug_setlc:
+	mov byte [lastchar], cl
 	ret
 
 section .data align=16
