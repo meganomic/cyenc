@@ -9,16 +9,19 @@ encode:
 	push r12 ; save r12 and r13, I need those registers for stuff
 	push r13
 	push rbx
+	;push rdi
 
 	xor rbx, rbx
 	xor r9, r9
 	xor r11, r11
 
 	movaps xmm3, [const1] ; 0x40
+	mov r9, rsi ; original position of outputarray
+	sub rdx, 16
 align 16
 .encodeset:
-	cmp rdx, 16
-	jle .specialchar ; The last 8 or less characters need special treatment
+	;cmp rdx, 16
+	;jle .specialchar ; The last 8 or less characters need special treatment
 	movaps xmm0, [rdi]
 	paddb xmm0, xmm3 ; +42
 
@@ -44,81 +47,354 @@ align 16
 	cmp r11, 119
 	jge .scmultientry ; Need special handling if we go over line length limit
 	mov qword [rsi], rax
-	add rdi, 8
+	;add rdi, 8
 	add rsi, 8
-	add r9, 8
 	add r11, 8
-	sub rdx, 8
-align 16
-.parttwo:
+	;sub rdx, 8
+;align 16
+;.parttwo:
 	mov rbx, 0
 	psrldq xmm1, 8
 	psrldq xmm0, 8
 	movd r10, xmm1
 	movd rax, xmm0
 	cmp r10, 0
-	jne .scmultientry
+	jne .scmultientryb
 	cmp r11, 119
-	jge .scmultientry ; Need special handling if we go over line length limit
+	jge .scmultientryb ; Need special handling if we go over line length limit
 	mov qword [rsi], rax
-	add rdi, 8
+	add rdi, 16
 	add rsi, 8
-	add r9, 8
 	add r11, 8
-	sub rdx, 8
+	sub rdx, 16
+	jbe .specialcharentry
 	jmp .encodeset ; Encode another 8 bytes
 
 align 16
-.parttwocheck:
-	add rdi, 8
-	sub rdx, 8
-	cmp rbx, 1
-	je .parttwo
-	jmp .encodeset
-
-align 16
 .scmultientry:
-	mov r13, 9
-
-.scmulti:
-	sub r13, 1
-	jz .parttwocheck
-	cmp r10b, 0xFF
-	je .scmulti2
-
-.scnextcharmulti:
+	cmp r10b, 0x00
+	je .scskip1
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip1:
 	mov byte [rsi], al ; Move encoded byte to output array
 	add rsi, 1 ; increase output array pointer
-	add r9, 1 ; Increase size of output
 	add r11, 1 ; Increase line length
 	shr rax, 8
 	shr r10, 8
 	cmp r11, 127
-	jge .scnewlinemulti
-	jmp .scmulti
-
-align 16
-.scmulti2:
+	jl .scmultiskip1
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip1:
+	cmp r10b, 0x00
+	je .scskip2
 	add al, 64 ; This time we add 64
 	mov byte [rsi], 61 ; Add escape character
 	add rsi, 1 ; increase output array pointer
-	add r9, 1 ; Increase size of output
 	add r11, 1 ; Increase line length
-	jmp .scnextcharmulti
-
-align 16
-.scnewlinemulti:
+.scskip2:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip2
 	mov word [rsi], 0x0A0D ; \r\n
 	add rsi, 2 ; increase output array pointer
-	add r9, 2 ; Increase size of output
 	xor r11, r11
-	jmp .scmulti
+.scmultiskip2:
+	cmp r10b, 0x00
+	je .scskip3
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip3:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip3
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip3:
+	cmp r10b, 0x00
+	je .scskip4
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip4:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip4
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip4:
+	cmp r10b, 0x00
+	je .scskip5
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip5:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip5
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip5:
+	cmp r10b, 0x00
+	je .scskip6
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip6:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip6
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip6:
+	cmp r10b, 0x00
+	je .scskip7
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip7:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip7
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip7:
+	cmp r10b, 0x00
+	je .scskip8
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip8:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip8
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip8:
+	mov rbx, 0
+	psrldq xmm1, 8
+	psrldq xmm0, 8
+	movd r10, xmm1
+	movd rax, xmm0
+	cmp r10, 0
+	jne .scmultientryb
+	cmp r11, 119
+	jge .scmultientryb ; Need special handling if we go over line length limit
+	mov qword [rsi], rax
+	add rdi, 16
+	add rsi, 8
+	add r11, 8
+	sub rdx, 16
+	jbe .specialcharentry
+	jmp .encodeset ; Encode another 8 bytes
 
 align 16
+.scmultientryb:
+	cmp r10b, 0x00
+	je .scskip1b
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip1b:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip1b
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip1b:
+	cmp r10b, 0x00
+	je .scskip2b
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip2b:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip2b
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip2b:
+	cmp r10b, 0x00
+	je .scskip3b
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip3b:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip3b
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip3b:
+	cmp r10b, 0x00
+	je .scskip4b
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip4b:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip4b
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip4b:
+	cmp r10b, 0x00
+	je .scskip5b
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip5b:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip5b
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip5b:
+	cmp r10b, 0x00
+	je .scskip6b
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip6b:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip6b
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip6b:
+	cmp r10b, 0x00
+	je .scskip7b
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip7b:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip7b
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip7b:
+	cmp r10b, 0x00
+	je .scskip8b
+	add al, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+.scskip8b:
+	mov byte [rsi], al ; Move encoded byte to output array
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	shr rax, 8
+	shr r10, 8
+	cmp r11, 127
+	jl .scmultiskip8b
+	mov word [rsi], 0x0A0D ; \r\n
+	add rsi, 2 ; increase output array pointer
+	xor r11, r11
+.scmultiskip8b:
+	;add rdi, 8
+	;cmp rbx, 1
+	;je .parttwo
+	add rdi, 16
+	sub rdx, 16
+	jbe .specialcharentry
+	jmp .encodeset
+
+align 16
+.specialcharentry:
+	add rdx, 16
+	jmp .specialchar
+
 .scnewline:
 	mov word [rsi], 0x0A0D ; \r\n
 	add rsi, 2 ; increase output array pointer
-	add r9, 2 ; Increase size of output
 	xor r11, r11
 
 .scnextchar:
@@ -138,26 +414,26 @@ align 16
 	je .sc
 	cmp r10b, 61
 	je .sc
-	jmp .scoutputencoded
-
-.sc:
-	add r10b, 64 ; This time we add 64
-	mov byte [rsi], 61 ; Add escape character
-	add rsi, 1 ; increase output array pointer
-	add r9, 1 ; Increase size of output
-	add r11, 1 ; Increase line length
 
 .scoutputencoded:
 	mov byte [rsi], r10b ; Move encoded byte to output array
 	add rsi, 1 ; increase output array pointer
-	add r9, 1 ; Increase size of output
 	add r11, 1 ; Increase line length
 	cmp r11, 127
 	jge .scnewline
 	jmp .scnextchar
 
+.sc:
+	add r10b, 64 ; This time we add 64
+	mov byte [rsi], 61 ; Add escape character
+	add rsi, 1 ; increase output array pointer
+	add r11, 1 ; Increase line length
+	jmp .scoutputencoded
+
 .exitprogram:
-	mov rax, r9 ; Return output size
+	sub rsi, r9 ; subtract original position from current and we get the size
+	mov rax, rsi ; Return output size
+	;pop rdi
 	pop rbx
 	pop r13 ; restore some registers to their original state
 	pop r12
@@ -168,9 +444,13 @@ align 16
 decode:
 	sub rsp, 8
 	push rbx
+	push r12
 
 	xor rbx, rbx
 	xor r11, r11
+	;xor r9, r9
+
+	mov r9, rsi ; original position of outputarray
 
 .decodeset:
 	cmp rdx, 16
@@ -218,18 +498,65 @@ decode:
 	cmp r10, 0
 	je .writeset
 	mov r12b, 8
-.compactbytes:
+;.compactbytes: fully unrolled because it was faster on my cpu
 	cmp r10b, 0xFF
 	je .skipbyte
 	mov byte [rsi], al
-	add r9, 1
 	add rsi, 1
-
 .skipbyte:
 	shr r10, 8
 	shr rax, 8
-	sub r12b, 1
-	jnz .compactbytes
+	cmp r10b, 0xFF
+	je .skipbyte2
+	mov byte [rsi], al
+	add rsi, 1
+.skipbyte2:
+	shr r10, 8
+	shr rax, 8
+	cmp r10b, 0xFF
+	je .skipbyte3
+	mov byte [rsi], al
+	add rsi, 1
+.skipbyte3:
+	shr r10, 8
+	shr rax, 8
+	cmp r10b, 0xFF
+	je .skipbyte4
+	mov byte [rsi], al
+	add rsi, 1
+.skipbyte4:
+	shr r10, 8
+	shr rax, 8
+	cmp r10b, 0xFF
+	je .skipbyte5
+	mov byte [rsi], al
+	add rsi, 1
+.skipbyte5:
+	shr r10, 8
+	shr rax, 8
+	cmp r10b, 0xFF
+	je .skipbyte6
+	mov byte [rsi], al
+	add rsi, 1
+.skipbyte6:
+	shr r10, 8
+	shr rax, 8
+	cmp r10b, 0xFF
+	je .skipbyte7
+	mov byte [rsi], al
+	add rsi, 1
+.skipbyte7:
+	shr r10, 8
+	shr rax, 8
+	cmp r10b, 0xFF
+	je .skipbyte8
+	mov byte [rsi], al
+	add rsi, 1
+.skipbyte8:
+	;shr r10, 8
+	;shr rax, 8
+	sub r12b, 8
+	;jnz .compactbytes
 
 	psrldq xmm1, 8
 	psrldq xmm0, 8
@@ -243,7 +570,6 @@ decode:
 align 16
 .writeset:
 	mov qword [rsi], rax
-	add r9, 8
 	add rsi, 8
 	psrldq xmm1, 8 ; right shift by 8 bytes
 	psrldq xmm0, 8 ; right shift by 8 bytes
@@ -288,14 +614,15 @@ align 16
 	sub r10b, 42 ; -42
 	mov byte [rsi], r10b ; Move encoded byte to output array
 	add rsi, 1 ; increase output array pointer
-	add r9, 1 ; Increase size of output
 	jmp .decscnextchar
 
 .decodeexitprogram2:
 	mov byte [lastchar], 0xFF ; if the last character is a escape character, that information needs to be saved
 
 .decodeexitprogram:
-	mov rax, r9 ; Return output size
+	sub rsi, r9 ; subtract original position from current and we get the size
+	mov rax, rsi ; Return output size
+	pop r12
 	pop rbx
 	add rsp, 8
 	ret
@@ -308,6 +635,4 @@ const1:		times 2 dq 0x2A2A2A2A2A2A2A2A
 specialdecode4:	times 2 dq 0x4040404040404040
 decodeconst3:	ddq	0x000000000000000000000000000000FF
 decodeconst4:	ddq	0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00
-decodeconst1:	 dq 0xFFFFFFFFFFFFFFFF
-decodeconst2:	 dw 0x00FF
 lastchar:	db 0x00
