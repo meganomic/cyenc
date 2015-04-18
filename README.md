@@ -6,3 +6,5 @@ How to use?! It exports two functions. These.
 
 The function returns size_of_output.
 The output_buffer MUST be sufficently large to take all the data. Undefined things will happen if it's not. Just make it twice as big as input or something. Whatever. #yolo
+
+Requires SSE2
