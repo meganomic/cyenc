@@ -9,4 +9,4 @@ The output_buffer MUST be sufficently large to take all the data. Undefined thin
 
 When decoding, make sure to only decode 1 file at a time and in order! It keeps track of various variables internaly. If you do NOT follow this sage advice you will get broken output.
 
-Requires SSE2
+Requires SSE2 and x64 OS
