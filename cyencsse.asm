@@ -3,7 +3,7 @@ global decode
 global debug_getlc
 global debug_setlc
 
-default rel
+default rel ; Relative addressing mode
 
 %ifidn __OUTPUT_FORMAT__, win64 ; Windows calling convention
 	%define outputarray rdx
@@ -607,18 +607,19 @@ debug_getlc:
 	xor rax, rax
 	mov al, byte [lastchar]
 	ret
+
 debug_setlc:
 	mov byte [lastchar], cl
 	ret
 
 section .data align=16
-special1:	times 2 dq 0x3D3D3D3D3D3D3D3D
-special2:	times 2 dq 0x0A0A0A0A0A0A0A0A
-special3:	times 2 dq 0X0D0D0D0D0D0D0D0D
-const1:		times 2 dq 0x2A2A2A2A2A2A2A2A
+special1:		times 2 dq 0x3D3D3D3D3D3D3D3D
+special2:		times 2 dq 0x0A0A0A0A0A0A0A0A
+special3:		times 2 dq 0X0D0D0D0D0D0D0D0D
+const1:			times 2 dq 0x2A2A2A2A2A2A2A2A
 specialdecode4:	times 2 dq 0x4040404040404040
 decodeconst3:	dq 0x00000000000000FF
 				dq 0x0000000000000000
 decodeconst4:	dq 0xFFFFFFFFFFFFFF00
 				dq 0xFFFFFFFFFFFFFFFF
-lastchar:	db 0x00
+lastchar:		db 0x00
