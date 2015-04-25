@@ -1,9 +1,13 @@
-global encode
-global decode
-global debug_getlc
-global debug_setlc
+GLOBAL encode
+EXPORT encode
+GLOBAL decode
+EXPORT decode
+GLOBAL debug_getlc
+EXPORT debug_getlc
+GLOBAL debug_setlc
+EXPORT debug_setlc
 
-default rel ; Relative addressing mode
+default rel
 
 %ifidn __OUTPUT_FORMAT__, win64 ; Windows calling convention
 	%define outputarray rdx
@@ -468,14 +472,29 @@ decode:
 	mov byte [lastchar], 0xFF
 
 .cont2:
-	mov r11b, 2
+
 .retfromwset:
 	movq r10, xmm1 ; List of bytes to skip
 	movq rax, xmm0 ; Move to gpr so we can do stuff
 	cmp r10, 0
-	je .writeset
-	mov r12b, 8
-;.compactbytes: fully unrolled because it was faster on my cpu
+	jne .writesinglesA
+	mov qword [outputarray], rax
+	add outputarray, 8
+	psrldq xmm1, 8 ; right shift by 8 bytes
+	psrldq xmm0, 8 ; right shift by 8 bytes
+
+	movq r10, xmm1 ; List of bytes to skip
+	movq rax, xmm0 ; Move to gpr so we can do stuff
+	cmp r10, 0
+	jne .writesinglesB
+	mov qword [outputarray], rax
+	add outputarray, 8
+
+	add inputarray, 16 ; increase input pointer
+	sub inputsize, 16 ; Done encoding 16 bytes
+	jmp .decodeset
+
+.writesinglesA:
 	cmp r10b, 0xFF
 	je .skipbyte
 	mov byte [outputarray], al
@@ -530,32 +549,79 @@ decode:
 	mov byte [outputarray], al
 	add outputarray, 1
 .skipbyte8:
-	;shr r10, 8
-	;shr rax, 8
-	sub r12b, 8
-	;jnz .compactbytes
 
 	psrldq xmm1, 8
 	psrldq xmm0, 8
-	sub r11b, 1
-	jnz .retfromwset
-
-	add inputarray, 16 ; increase input pointer
-	sub inputsize, 16 ; Done encoding 16 bytes
-	jmp .decodeset ; Encode another 16 bytes
-
-align 16
-.writeset:
+	movq r10, xmm1 ; List of bytes to skip
+	movq rax, xmm0 ; Move to gpr so we can do stuff
+	cmp r10, 0
+	jne .writesinglesB
 	mov qword [outputarray], rax
 	add outputarray, 8
-	psrldq xmm1, 8 ; right shift by 8 bytes
-	psrldq xmm0, 8 ; right shift by 8 bytes
-	sub r11b, 1
-	jnz .retfromwset
 
 	add inputarray, 16 ; increase input pointer
 	sub inputsize, 16 ; Done encoding 16 bytes
 	jmp .decodeset
+
+align 16
+.writesinglesB:
+	cmp r10b, 0xFF
+	je .skipbyteB
+	mov byte [outputarray], al
+	add outputarray, 1
+.skipbyteB:
+	shr r10, 8
+	shr rax, 8
+	cmp r10b, 0xFF
+	je .skipbyte2B
+	mov byte [outputarray], al
+	add outputarray, 1
+.skipbyte2B:
+	shr r10, 8
+	shr rax, 8
+	cmp r10b, 0xFF
+	je .skipbyte3B
+	mov byte [outputarray], al
+	add outputarray, 1
+.skipbyte3B:
+	shr r10, 8
+	shr rax, 8
+	cmp r10b, 0xFF
+	je .skipbyte4B
+	mov byte [outputarray], al
+	add outputarray, 1
+.skipbyte4B:
+	shr r10, 8
+	shr rax, 8
+	cmp r10b, 0xFF
+	je .skipbyte5B
+	mov byte [outputarray], al
+	add outputarray, 1
+.skipbyte5B:
+	shr r10, 8
+	shr rax, 8
+	cmp r10b, 0xFF
+	je .skipbyte6B
+	mov byte [outputarray], al
+	add outputarray, 1
+.skipbyte6B:
+	shr r10, 8
+	shr rax, 8
+	cmp r10b, 0xFF
+	je .skipbyte7B
+	mov byte [outputarray], al
+	add outputarray, 1
+.skipbyte7B:
+	shr r10, 8
+	shr rax, 8
+	cmp r10b, 0xFF
+	je .skipbyte8B
+	mov byte [outputarray], al
+	add outputarray, 1
+.skipbyte8B:
+	add inputarray, 16 ; increase input pointer
+	sub inputsize, 16 ; Done encoding 16 bytes
+	jmp .decodeset ; Encode another 16 bytes
 
 .decscnextchar:
 	add inputarray, 1
@@ -607,19 +673,18 @@ debug_getlc:
 	xor rax, rax
 	mov al, byte [lastchar]
 	ret
-
 debug_setlc:
 	mov byte [lastchar], cl
 	ret
 
 section .data align=16
-special1:		times 2 dq 0x3D3D3D3D3D3D3D3D
-special2:		times 2 dq 0x0A0A0A0A0A0A0A0A
-special3:		times 2 dq 0X0D0D0D0D0D0D0D0D
-const1:			times 2 dq 0x2A2A2A2A2A2A2A2A
+special1:	times 2 dq 0x3D3D3D3D3D3D3D3D
+special2:	times 2 dq 0x0A0A0A0A0A0A0A0A
+special3:	times 2 dq 0X0D0D0D0D0D0D0D0D
+const1:		times 2 dq 0x2A2A2A2A2A2A2A2A
 specialdecode4:	times 2 dq 0x4040404040404040
 decodeconst3:	dq 0x00000000000000FF
 				dq 0x0000000000000000
 decodeconst4:	dq 0xFFFFFFFFFFFFFF00
 				dq 0xFFFFFFFFFFFFFFFF
-lastchar:		db 0x00
+lastchar:	db 0x00
