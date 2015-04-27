@@ -1,11 +1,7 @@
-GLOBAL encode
-EXPORT encode
-GLOBAL decode
-EXPORT decode
-GLOBAL debug_getlc
-EXPORT debug_getlc
-GLOBAL debug_setlc
-EXPORT debug_setlc
+global encode
+global decode
+global debug_getlc
+global debug_setlc
 
 default rel
 
