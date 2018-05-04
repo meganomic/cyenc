@@ -36,7 +36,7 @@ encode: ; encode(outputarray, inputarray, inputsize) returns the size of the out
 
 align 16
 .encodeset:
-	vmovaps ymm0, [inputarray] ; Read 16 bytes from memory
+	vmovaps ymm0, [inputarray] ; Read 32 bytes from memory
 	vpaddb ymm0, ymm0, [const1] ; +42 as per yEnc spec
 
 	vpcmpeqb ymm1, ymm0, [specialNull] ; 0x00
@@ -79,7 +79,7 @@ align 16
 	vmovaps ymm5, [specialEqual] ; Escape character
 	vpunpcklbw ymm5, ymm5, ymm0 ; Unpack lower half of data
 	vpunpcklbw ymm7, ymm7, ymm1 ; Unpack lower half of mask
-	vpsrldq ymm7, ymm7 ,1 ; Shift data register 1 byte to the right to align with ymm6
+	vpsrldq ymm7, ymm7 ,1 ; Shift data register 1 byte to the right to align with [writebytes]
 	vpor ymm6, ymm7, [writebytes] ; Add masks together
 
 	;--------------------------- first split
