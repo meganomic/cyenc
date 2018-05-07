@@ -1,4 +1,16 @@
-# cyenc
+# cyenc - AVX version
+**Do not use this, it is broken.**
+
+I've begun a rewrite of this since the original code is bad. I want the code to be at least at the beginner level so I'm doing that. cyencavx.asm contains a encode function that *works*. There's some weird things going on with it that I don't understand yet. Currently for windows only since that is the platform I'm using. I've put in some effort to make it work on linux but because of said *weird* thing it doesn't.
+
+- int encode(void* output_buffer, void* input_buffer, int size_of_input)
+
+The function returns size_of_output.
+As the old version, make sure the output buffer is sufficiently large.
+Notice that I've changed the order of the input/output buffer arguments. I did that because of some reason that I have since forgotten but I'm sure it was a very good reason.
+
+# cyenc - SSE version
+##### Only kept for historical and shaming reasons
 How to use?! It exports two functions. These.
 
 - int encode(void* input_buffer, void* output_buffer, int size_of_input)
