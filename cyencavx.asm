@@ -20,24 +20,14 @@ encode: ; encode(outputarray, inputarray, inputsize) returns the size of the out
 	push r13
 	push r14
 	push r15
-	push rdi
-	push rbx
-	push rbp
-	push rsi
 
 	mov r9, outputarray ; Memory address of outputarray, will use this to get the size of the output later
 	mov r11, 4 ; The maximum length of each line is 128 characters, 4 iterations will result in adequate results. 4*32=128
 
-	%ifidn __OUTPUT_FORMAT__, win64 ; Windows calling convention
-		mov rdi, outputarray ; Need to keep the address to the output memory location in RDI because of maskmovdqu
-		%define outputarray rdi
-	%endif
-	
-
 align 16
 .encodeset:
 	vmovaps ymm0, [inputarray] ; Read 32 bytes from memory
-	vpaddb ymm0, ymm0, [const1] ; +42 as per yEnc spec
+	vpaddb ymm0, [const1] ; +42 as per yEnc spec
 
 	vpcmpeqb ymm1, ymm0, [specialNull] ; 0x00
 	vpcmpeqb ymm2, ymm0, [specialEqual] ; 0x3D
@@ -60,80 +50,53 @@ align 16
 	jmp .encodeset
 
 align 16
-.newline:
-	mov word [outputarray], 0x0A0D ; \r\n
-	add outputarray, 2 ; increase output array pointer
-	mov r11, 4 ; Reset counter
-	jmp .encodeset
-
-align 16
 .encodeillegalcharacters:
-	pxor xmm10, xmm10
-	pxor xmm11, xmm11
-	pxor xmm12, xmm12
+	vpxor xmm10, xmm10
+	vpxor xmm11, xmm11
+	vpxor xmm12, xmm12
 	
-	vpand ymm9, ymm1, [specialdecode4]
-	vpaddb ymm0, ymm0, ymm9
+	; Add 64 to every byte in the mask
+	vpand ymm9, ymm1, [specialEncode]
+	vpaddb ymm0, ymm9
 
-	vmovaps ymm7, [specialNull]
-	vmovaps ymm5, [specialEqual] ; Escape character
-	vpunpcklbw ymm5, ymm5, ymm0 ; Unpack lower half of data
-	vpunpcklbw ymm7, ymm7, ymm1 ; Unpack lower half of mask
-	vpsrldq ymm7, ymm7 ,1 ; Shift data register 1 byte to the right to align with [writebytes]
+	vpxor ymm7, ymm7 ; Need some zeroes
+	vpbroadcastb ymm5, [specialEqual] ; Escape character
+	vpunpcklbw ymm5, ymm0 ; Unpack lower half of data
+	vpunpcklbw ymm7, ymm1 ; Unpack lower half of mask
+	vpsrldq ymm7, 1 ; Shift data register 1 byte to the right to align with [writebytes]
 	vpor ymm6, ymm7, [writebytes] ; Add masks together
 
-	;--------------------------- first split
+	;--------------------------- Lower 8 bytes of the *low* part of ymm5 --- START
 	
-	movq r12, xmm5
-	movq r13, xmm6
+	vmovq r12, xmm5
+	vmovq r13, xmm6
 	pext rax, r12, r13
 	mov qword [outputarray], rax
 	
-	movq xmm12, r13
+	vmovq xmm12, r13
 	vpmovmskb r14, xmm12
 	popcnt r10, r14
 	add outputarray, r10 ; add however many bytes were written
-	
-	psrldq xmm5, 8 ; Shift mask register 8 bytes to the right
-	psrldq xmm6, 8 ; Shift mask register 8 bytes to the right
-	movq r12, xmm5
-	movq r13, xmm6
+	;--
+	vpsrldq xmm14, xmm5, 8 ; Shift mask register 8 bytes to the right
+	vpsrldq xmm15, xmm6, 8 ; Shift mask register 8 bytes to the right
+	vmovq r12, xmm14
+	vmovq r13, xmm15
 	pext rax, r12, r13
 	mov qword [outputarray], rax
 	
-	movq xmm12, r13
+	vmovq xmm12, r13
 	vpmovmskb r14, xmm12
 	popcnt r10, r14
 	add outputarray, r10 ; add however many bytes were written
+	;--------------------------- Lower 8 bytes of the *low* part of ymm5 --- END
 	
-	;--------------------------- second split
-	
+	;--------------------------- Lower 8 bytes of the *high* part of ymm5 --- START SAVE DATA
+	; Seems simpler to just save the data here and process/write the data in order later
+	; If nothing else, it skips on having to keep track of a bunch of extra registers
 	vextracti128 xmm10, ymm5, 1
 	vextracti128 xmm11, ymm6, 1
-	movq r12, xmm10
-	movq r13, xmm11
-	pext rax, r12, r13
-	;mov qword [outputarray], rax
-	
-	movq xmm12, r13
-	vpmovmskb r14, xmm12
-	popcnt r10, r14
-	;add outputarray, r10 ; add however many bytes were written
-	
-	psrldq xmm10, 8 ; Shift mask register 8 bytes to the right
-	psrldq xmm11, 8 ; Shift mask register 8 bytes to the right
-	movq r12, xmm10
-	movq r13, xmm11
-	pext rsi, r12, r13
-	;mov qword [outputarray], rax
-	
-	movq xmm12, r13
-	vpmovmskb r14, xmm12
-	popcnt r15, r14
-	;add outputarray, r10 ; add however many bytes were written
-
-	;---------------------------
-	
+	;--------------------------- Lower 8 bytes of the *high* part of ymm5 --- END SAVE DATA
 	
 	vmovaps ymm7, [specialNull]
 	vmovaps ymm5, [specialEqual] ; Escape character
@@ -142,69 +105,80 @@ align 16
 	vpsrldq ymm7, 1 ; Shift data register 1 byte to the right to align with ymm6
 	vpor ymm6, ymm7, [writebytes] ; Add masks together
 
-	;--------------------------- first split
-	
-	movq r12, xmm5
-	movq r13, xmm6
-	pext rbx, r12, r13
-	mov qword [outputarray], rbx
-	
-	movq xmm12, r13
-	vpmovmskb r14, xmm12
-	popcnt rbp, r14
-	add outputarray, rbp ; add however many bytes were written
-	
-	psrldq xmm5, 8 ; Shift mask register 8 bytes to the right
-	psrldq xmm6, 8 ; Shift mask register 8 bytes to the right
-	movq r12, xmm5
-	movq r13, xmm6
-	pext rbx, r12, r13
-	mov qword [outputarray], rbx
-	
-	movq xmm12, r13
-	vpmovmskb r14, xmm12
-	popcnt rbp, r14
-	add outputarray, rbp ; add however many bytes were written
-	
-	
-	;wtf cancer? it makes no sense
-	; data is stored in a 1 3 2 4 order in the ymm register for some reason I can't figure out
+	;--------------------------- Higher 8 bytes of the *low* part of ymm5 --- START
+	vmovq r12, xmm5
+	vmovq r13, xmm6
+	pext rax, r12, r13
 	mov qword [outputarray], rax
+	
+	vmovq xmm12, r13
+	vpmovmskb r14, xmm12
+	popcnt r10, r14
 	add outputarray, r10 ; add however many bytes were written
-	mov qword [outputarray], rsi
-	add outputarray, r15 ; add however many bytes were written
+	;--
+	vpsrldq xmm14, xmm5, 8 ; Shift mask register 8 bytes to the right
+	vpsrldq xmm15, xmm6, 8 ; Shift mask register 8 bytes to the right
+	vmovq r12, xmm14
+	vmovq r13, xmm15
+	pext rax, r12, r13
+	mov qword [outputarray], rax
 	
+	vmovq xmm12, r13
+	vpmovmskb r14, xmm12
+	popcnt r10, r14
+	add outputarray, r10 ; add however many bytes were written
+	;--------------------------- Higher 8 bytes of the *low* part of ymm5 --- END
 	
-	;--------------------------- second split
+	;--------------------------- Lower 8 bytes of the *high* part of ymm5 --- START PROCESSING
+	vmovq r12, xmm10
+	vmovq r13, xmm11
+	pext rax, r12, r13
+	mov qword [outputarray], rax
 	
+	vmovq xmm12, r13
+	vpmovmskb r14, xmm12
+	popcnt r10, r14
+	add outputarray, r10 ; add however many bytes were written
+	;--
+	vpsrldq xmm10, 8 ; Shift mask register 8 bytes to the right
+	vpsrldq xmm11, 8 ; Shift mask register 8 bytes to the right
+	vmovq r12, xmm10
+	vmovq r13, xmm11
+	pext rax, r12, r13
+	mov qword [outputarray], rax
+	
+	vmovq xmm12, r13
+	vpmovmskb r14, xmm12
+	popcnt r10, r14
+	add outputarray, r10 ; add however many bytes were written
+	;--------------------------- Lower 8 bytes of the *high* part of ymm5 --- END PROCESSING
+	
+	;--------------------------- Higher 8 bytes of the *high* part of ymm5 --- START
 	vextracti128 xmm10, ymm5, 1
 	vextracti128 xmm11, ymm6, 1
-	movq r12, xmm10
-	movq r13, xmm11
+	vmovq r12, xmm10
+	vmovq r13, xmm11
 	pext rax, r12, r13
 	mov qword [outputarray], rax
 	
-	movq xmm12, r13
+	vmovq xmm12, r13
 	vpmovmskb r14, xmm12
 	popcnt r10, r14
 	add outputarray, r10 ; add however many bytes were written
-	
-	psrldq xmm10, 8 ; Shift mask register 8 bytes to the right
-	psrldq xmm11, 8 ; Shift mask register 8 bytes to the right
-	movq r12, xmm10
-	movq r13, xmm11
+	;--
+	vpsrldq xmm10, 8 ; Shift mask register 8 bytes to the right
+	vpsrldq xmm11, 8 ; Shift mask register 8 bytes to the right
+	vmovq r12, xmm10
+	vmovq r13, xmm11
 	pext rax, r12, r13
 	mov qword [outputarray], rax
 	
-	movq xmm12, r13
+	vmovq xmm12, r13
 	vpmovmskb r14, xmm12
 	popcnt r10, r14
 	add outputarray, r10 ; add however many bytes were written
+	;--------------------------- Higher 8 bytes of the *high* part of ymm5 --- END
 
-	;---------------------------
-	
-	
-	
 	add inputarray, 32
 	sub inputsize, 32
 	jbe .done ; Yay! It's done!
@@ -213,14 +187,18 @@ align 16
 	jmp .encodeset
 
 align 16
+.newline:
+	mov word [outputarray], 0x0A0D ; \r\n
+	add outputarray, 2 ; increase output array pointer
+	mov r11, 4 ; Reset counter
+	jmp .encodeset
+
+align 16
 .done:
 	sub outputarray, r9 ; subtract original position from current and we get the size
 	mov rax, outputarray ; Return output size
 	add rax, inputsize ; correct for input not being a multiple of 16.
-	pop rsi
-	pop rbp
-	pop rbx
-	pop rdi
+
 	pop r15
 	pop r14
 	pop r13 ; restore some registers to their original state
@@ -235,7 +213,7 @@ specialCR:			times 4 dq 0x0D0D0D0D0D0D0D0D
 specialSpace:	times 4 dq 0x2020202020202020
 writebytes:		times 4 dq 0xFF00FF00FF00FF00
 const1:				times 4 dq 0x2A2A2A2A2A2A2A2A
-specialdecode4:	times 4 dq 0x4040404040404040
+specialEncode:	times 4 dq 0x4040404040404040
 decodeconst3:	dq 0x00000000000000FF
 						dq 0x0000000000000000
 decodeconst4:	dq 0xFFFFFFFFFFFFFF00
