@@ -22,16 +22,17 @@ encode: ; encode(outputarray, inputarray, inputsize) returns the size of the out
 	push r15
 
 	%ifidn __OUTPUT_FORMAT__, win64 ; Windows calling convention
-		push xmm6
-		push xmm7
-		push xmm8
-		push xmm9
-		push xmm10
-		push xmm11
-		push xmm12
-		push xmm13
-		push xmm14
-		push xmm15
+		sub rsp, 168
+		vmovdqa [rsp+16*0], xmm6
+		vmovdqa [rsp+16*1], xmm7
+		vmovdqa [rsp+16*2], xmm8
+		vmovdqa [rsp+16*3], xmm9
+		vmovdqa [rsp+16*4], xmm10
+		vmovdqa [rsp+16*5], xmm11
+		vmovdqa [rsp+16*6], xmm12
+		vmovdqa [rsp+16*7], xmm13
+		vmovdqa [rsp+16*8], xmm14
+		vmovdqa [rsp+16*9], xmm15
 	%endif
 
 	mov r9, outputarray ; Memory address of outputarray, will use this to get the size of the output later
@@ -213,16 +214,17 @@ align 16
 	add rax, inputsize ; correct for input not being a multiple of 16.
 
 	%ifidn __OUTPUT_FORMAT__, win64 ; Windows calling convention
-		pop xmm15
-		pop xmm14
-		pop xmm13
-		pop xmm12
-		pop xmm11
-		pop xmm10
-		pop xmm9
-		pop xmm8
-		pop xmm7
-		pop xmm6
+		vmovdqa xmm6, [rsp+16*0]
+		vmovdqa xmm7, [rsp+16*1]
+		vmovdqa xmm8, [rsp+16*2]
+		vmovdqa xmm9, [rsp+16*3]
+		vmovdqa xmm10, [rsp+16*4]
+		vmovdqa xmm11, [rsp+16*5]
+		vmovdqa xmm12, [rsp+16*6]
+		vmovdqa xmm13, [rsp+16*7]
+		vmovdqa xmm14, [rsp+16*8]
+		vmovdqa xmm15, [rsp+16*9]
+		add rsp, 168
 	%endif
 
 	pop r15
