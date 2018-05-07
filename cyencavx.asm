@@ -16,13 +16,14 @@ default rel
 section .text
 align 16
 encode: ; encode(outputarray, inputarray, inputsize) returns the size of the output
+	sub rsp, 8 ; Align the stack to 16, I do not understand why it's not already align to 16. 
 	push r12 ; calling convention demands saving various registers
 	push r13
 	push r14
 	push r15
 
 	%ifidn __OUTPUT_FORMAT__, win64 ; Windows calling convention
-		sub rsp, 168
+		sub rsp, 160
 		vmovdqa [rsp+16*0], xmm6
 		vmovdqa [rsp+16*1], xmm7
 		vmovdqa [rsp+16*2], xmm8
@@ -224,13 +225,14 @@ align 16
 		vmovdqa xmm13, [rsp+16*7]
 		vmovdqa xmm14, [rsp+16*8]
 		vmovdqa xmm15, [rsp+16*9]
-		add rsp, 168
+		add rsp, 160
 	%endif
 
 	pop r15
 	pop r14
 	pop r13 ; restore some registers to their original state
 	pop r12
+	add rsp, 8 ; Reset
 	ret
 
 section .data align=32
