@@ -21,6 +21,19 @@ encode: ; encode(outputarray, inputarray, inputsize) returns the size of the out
 	push r14
 	push r15
 
+	%ifidn __OUTPUT_FORMAT__, win64 ; Windows calling convention
+		push xmm6
+		push xmm7
+		push xmm8
+		push xmm9
+		push xmm10
+		push xmm11
+		push xmm12
+		push xmm13
+		push xmm14
+		push xmm15
+	%endif
+
 	mov r9, outputarray ; Memory address of outputarray, will use this to get the size of the output later
 	mov r11, 4 ; The maximum length of each line is 128 characters, 4 iterations will result in adequate results. 4*32=128
 
@@ -198,6 +211,19 @@ align 16
 	sub outputarray, r9 ; subtract original position from current and we get the size
 	mov rax, outputarray ; Return output size
 	add rax, inputsize ; correct for input not being a multiple of 16.
+
+	%ifidn __OUTPUT_FORMAT__, win64 ; Windows calling convention
+		pop xmm15
+		pop xmm14
+		pop xmm13
+		pop xmm12
+		pop xmm11
+		pop xmm10
+		pop xmm9
+		pop xmm8
+		pop xmm7
+		pop xmm6
+	%endif
 
 	pop r15
 	pop r14
